@@ -1,4 +1,4 @@
-# :candle: C No Evil :eye_speech_bubble: :japanese_goblin:
+# :japanese_goblin: C No Evil :eye_speech_bubble: :candle:
 
 ## Libraries:
 - hashtable
