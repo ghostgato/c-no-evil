@@ -38,13 +38,6 @@ default_hash (const char *p_key)
     return hash;
 }
 
-/**
- * @brief Create a node object for hash table
- *
- * @param p_key key associated with value pair
- * @param p_value value assigned to key
- * @return ht_node*
- */
 static ht_node *
 create_node (const char *p_key, void *p_value)
 {
@@ -96,7 +89,6 @@ static void free_node(ht_node *p_node, del_f del)
     free(p_node);
 }
 
-// trying out inline for use in this simple function that returns a simple boolean value
 static inline int needs_resize(ht_t *p_htable)
 {
     return ((float)p_htable->node_count / p_htable->table_size) > BALANCE_FACTOR;
@@ -177,6 +169,8 @@ ht_create (size_t initial_size, hash_f hash)
     if (!p_htable->pp_items)
     {
         perror("[ERR] Memory allocation fail - ht_create() pp_items");
+        free(p_htable);
+        return NULL;
     }
     
 
@@ -225,19 +219,6 @@ ht_destroy (ht_t **pp_htable, del_f del)
     *pp_htable = NULL;
 }
 
-/**
- * Inserts a new key-value pair into the hashtable.
- * Creates an internal copy of the key string.
- * If the key already exists, the operation fails without modifying the table.
- *
- * Performance: Average O(1), worst case O(n) if many collisions occur
- *
- * @param p_htable Pointer to hashtable
- * @param p_key    Pointer to null-terminated string key
- * @param p_value  Pointer to value to associate with key
- *
- * @return true on success, false on failure or if key already exists
- */
 bool
 ht_put (ht_t *p_htable, const char *p_key, void *p_value)
 {
@@ -392,15 +373,31 @@ ht_update (ht_t *p_htable, const char *p_key, void *p_new_value)
     return p_data; // returning old data or null;
 }
 
-/**
- * Returns the number of key-value pairs in the hashtable.
- *
- * @param p_htable Pointer to hashtable
- *
- * @return Number of key-value pairs, 0 if table is empty/NULL
- */
-// ? when checking for a vallid table should we provide size max value for
-// invalid
+bool
+ht_contains(ht_t *p_htable, const char *p_key)
+{
+    if (!p_htable || !p_key)
+    {
+        return false;
+    }
+
+    // Get index
+    size_t   index     = p_htable->hash_func(p_key) % p_htable->table_size;
+    ht_node *p_current = p_htable->pp_items[index];
+    bool status = false; // assume key not found
+
+    // incase there are chained items
+    while (p_current)
+    {
+        if (strcmp(p_current->p_key, p_key) == 0) // check for key match
+        {
+            status = true; // key found
+        }
+        p_current = p_current->p_next;
+    }
+
+    return status;
+}
 
 size_t
 ht_size (ht_t *p_htable)
@@ -413,7 +410,7 @@ ht_size (ht_t *p_htable)
     }
     else
     {
-        size = p_htable->table_size;
+        size = p_htable->node_count; // return number of nodes in table
     }
 
     return size;
@@ -441,13 +438,6 @@ ht_iter_values (ht_t *p_htable, iter_f iter)
     }
 }
 
-/**
- * Prints all keys in the hashtable to standard output.
- * Useful for debugging and inspection.
- * Order of output is not guaranteed.
- *
- * @param p_htable Pointer to hashtable
- */
 void
 ht_print_keys (ht_t *p_htable)
 {

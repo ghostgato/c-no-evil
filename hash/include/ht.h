@@ -111,6 +111,18 @@ void *ht_remove(ht_t *p_htable, const char *p_key);
 void *ht_update(ht_t *p_htable, const char *p_key, void *p_new_value);
 
 /**
+ * Checks if a key exists in the hashtable. Does not return data
+ *
+ *
+ *
+ * @param p_htable Pointer to hashtable
+ * @param p_key    Pointer to null-terminated string key to check
+ *
+ * @return true if key exists, false if key not found or invalid parameters
+ */
+bool ht_contains(ht_t *p_htable, const char *p_key);
+
+/**
  * Returns the number of key-value pairs in the hashtable.
  *
  * @param p_htable Pointer to hashtable
