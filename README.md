@@ -2,7 +2,8 @@
 
 ## Libraries:
 - binary search tree
-- double-ended queue
+- double-ended queue (linked-list)
+- queue (array-based)
 - hashtable
 - priority queue
 
