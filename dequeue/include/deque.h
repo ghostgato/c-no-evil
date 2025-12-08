@@ -49,7 +49,7 @@ void deque_destroy(deque_t **pp_q, del_f del_func);
  * 
  * @param pp_q pointer to deque that wwill be purged
  */
-void deque_purge(deque_t *pp_q);
+void deque_purge(deque_t *p_q);
 
 /**
  * @brief Peeks at the element at the head of the deque without removing it

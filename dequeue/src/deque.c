@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <pthread.h>
+
 #include "../include/deque.h" 
 
-typedef struct node {
+typedef struct node
+{
     struct node *p_next;
     void        *p_data;
 } node_t;
@@ -12,6 +15,7 @@ struct deque {
     node_t  *p_head;
     node_t  *p_tail;
     ssize_t  size;
+    pthread_rwlock_t rwlock;
 };
 
 deque_t *deque_create(void)
@@ -31,8 +35,10 @@ void deque_destroy(deque_t **pp_q, del_f del_func)
     {
         return;
     }
-    //deque_t *p_deqtemp = pp_q;
-    // node_t *p_curr = p_deqtemp->p_head;
+    deque_t *p_deq = *pp_q;
+    
+    pthread_rwlock_wrlock(&p_deq->rwlock);
+
     node_t *p_curr = (*pp_q)->p_head;
     
     while(p_curr)
@@ -46,13 +52,22 @@ void deque_destroy(deque_t **pp_q, del_f del_func)
         }
         free(p_temp);
     }
+    pthread_rwlock_unlock(&p_deq->rwlock);
+
     free(*pp_q);
     *pp_q = NULL;  // Prevent use-after-free
 }
 
-void deque_purge(deque_t *pp_q)
+void deque_purge(deque_t *p_deq)
 {
-    node_t *p_curr = pp_q->p_head;
+    if (!p_deq)
+    {
+        return;
+    }
+
+    pthread_rwlock_wrlock(&p_deq->rwlock);
+
+    node_t *p_curr = p_deq->p_head;
 
     while (p_curr)
     {
@@ -61,15 +76,22 @@ void deque_purge(deque_t *pp_q)
 
         free(p_temp);
     }
+
+    pthread_rwlock_unlock(&p_deq->rwlock);
 }
 
 void *deque_peek(deque_t *p_q)
 {
     void *p_peekdata = NULL;
+
+    pthread_rwlock_rdlock(&p_q->rwlock);
+
     if (p_q != NULL && p_q->p_head != NULL)
     {
         p_peekdata = p_q->p_head->p_data;
     }
+
+    pthread_rwlock_unlock(&p_q->rwlock);
 
     return p_peekdata;
 }
@@ -85,6 +107,7 @@ int deque_push(deque_t *p_q, void *p_data)
         goto END_PUSH;
     }
 
+
     node_t *p_newnode = calloc(1, sizeof(node_t));
     if (!p_newnode)
     {
@@ -92,6 +115,8 @@ int deque_push(deque_t *p_q, void *p_data)
         status = 0;
         goto END_PUSH;
     }
+
+    pthread_rwlock_wrlock(&p_q->rwlock);
 
     //put parameter data into newly created node
     p_newnode->p_data = p_data;      // put data in new node
@@ -105,8 +130,9 @@ int deque_push(deque_t *p_q, void *p_data)
 
     p_q->size++;                     // update size
 
-END_PUSH:
+    pthread_rwlock_unlock(&p_q->rwlock);
 
+END_PUSH:
     return status;
 }
 
@@ -118,6 +144,7 @@ void *deque_pop(deque_t *p_q)
         return NULL;  
     }
     
+    pthread_rwlock_wrlock(&p_q->rwlock);
     
     node_t *p_temp = p_q->p_head;
     p_data = p_temp->p_data; // get data to return
@@ -131,6 +158,8 @@ void *deque_pop(deque_t *p_q)
     
     free(p_temp);
     p_q->size--;
+
+    pthread_rwlock_unlock(&p_q->rwlock);
     
     return p_data;
 }
@@ -154,6 +183,8 @@ int deque_enque(deque_t *p_q, void *p_data)
         goto END_ENQUE;
     }
 
+    pthread_rwlock_wrlock(&p_q->rwlock);
+
     // put data into new node
     p_newnode->p_data = p_data;
 
@@ -170,6 +201,8 @@ int deque_enque(deque_t *p_q, void *p_data)
     p_q->p_tail = p_newnode;
     p_q->size++;
 
+    pthread_rwlock_unlock(&p_q->rwlock);
+
 END_ENQUE:
     return status;
 }
@@ -183,6 +216,9 @@ void *deque_deque(deque_t *p_q)
         fprintf(stderr, "[Err] dequeue is empty\n");
         return p_data;
     }
+
+    pthread_rwlock_wrlock(&p_q->rwlock);
+
         p_data = p_q->p_head->p_data;
 
         node_t *p_temp = p_q->p_head;      //copy current head to temp before we cut it from the chain
@@ -190,7 +226,8 @@ void *deque_deque(deque_t *p_q)
         free(p_temp); // free the previous head
         p_q->size--;
 
-    printf("dqueueing this value: %d\n", *(int*)p_data);
+        pthread_rwlock_unlock(&p_q->rwlock);
+
     return p_data;
 }
 
@@ -200,7 +237,9 @@ ssize_t deque_size(deque_t *p_q)
 
     if (p_q)
     {
+        pthread_rwlock_rdlock(&p_q->rwlock);
         deqsize = p_q->size;
+        pthread_rwlock_unlock(&p_q->rwlock);
     }
 
     return deqsize;
@@ -213,6 +252,8 @@ void deque_print(deque_t *p_q, void (*print_func)(void *data))
         return;
     }
 
+    pthread_rwlock_rdlock(&p_q->rwlock);
+
     node_t *p_curr = p_q->p_head;
     while (p_curr)
     {
@@ -221,9 +262,6 @@ void deque_print(deque_t *p_q, void (*print_func)(void *data))
         p_curr = p_curr->p_next;
     }
     puts("");
-}
 
-void print_int(void *data) 
-{
-    printf("%d", *(int*)data);
+    pthread_rwlock_unlock(&p_q->rwlock);
 }
