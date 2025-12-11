@@ -6,6 +6,7 @@
 - queue (array-based)
 - hashtable
 - priority queue
+- threadpool
 
 ## Snippets: 
 - getopt
