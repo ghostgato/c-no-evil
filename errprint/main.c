@@ -1,5 +1,4 @@
 #include "errprint.h"
-// #include <stdio.h>
 
 int main(void)
 {
@@ -12,7 +11,6 @@ int main(void)
     errprint(USAGE, "yournum is #%d", yournum);
     errprint(WARN, "%s%d", myinfo, hisnum);
     errprint(USAGE, "arg with no variable attached %s", "THIS IS MY ATTACHMENT");
-    // printf("testing %d");
     errprint(ERR, "hello!");
 
     return 0;
