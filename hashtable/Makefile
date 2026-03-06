@@ -1,4 +1,4 @@
-.PHONY: debug clean all asan tidy release
+.PHONY: debug clean all asan tidy release test test-quiet
 
 CFLAGS += -Wall -Wextra -Wpedantic -Wvla -Winline
 STANDARD := -std=c99
@@ -10,6 +10,9 @@ INC_DIR := include
 SRCS := $(wildcard $(SRC_DIR)/*.c)
 OBJS := $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 BIN := driver
+TEST_DIR := test
+UNITY_DIR := $(TEST_DIR)/unity
+TEST_BIN := $(TEST_DIR)/test_runner
 
 TIDY_CHECKS := -*,\
         readability-*,\
@@ -38,10 +41,19 @@ asan: LDFLAGS += -fsanitize=address,undefined
 asan: $(BIN)
 	
 clean:
-	@rm -rf $(OBJ_DIR) $(BIN)
+	@rm -rf $(OBJ_DIR) $(BIN) $(TEST_BIN)
 
 tidy:
 	-clang-tidy $(SRCS) $(TIDY_FLAGS)
+
+test: $(TEST_BIN)
+	./$(TEST_BIN)
+
+testmute: $(TEST_BIN)
+	./$(TEST_BIN) 2>/dev/null
+
+$(TEST_BIN): src/ht.c $(TEST_DIR)/test_ht.c $(UNITY_DIR)/unity.c
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(TEST_DIR) -I$(UNITY_DIR) $^ -o $@ $(LDFLAGS)
 
 release: CFLAGS += -O3 -DNDEBUG
 release: $(BIN)
