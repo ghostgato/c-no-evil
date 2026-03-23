@@ -22,137 +22,52 @@ struct ht
     hash_f    hash_func;  // function to hash keys
 };
 
-static size_t
-default_hash (const char *p_key)
-{
-    // using djb2 hash algorithm
-    // https: // theartincode.stanis.me/008-djb2/
-    size_t hash = HASH_SEED;
-    int    idx  = 0;
+/**
+ * Default hash function using the djb2 algorithm.
+ *
+ * @param p_key Pointer to null-terminated string key to hash
+ *
+ * @return Hash value for the key
+ */
+static size_t default_hash (const char *p_key);
 
-    // need to cast to unsigned to zero extend the char (1 byte) to int (4 bytes)
-    while ((idx = (unsigned char)*p_key++))
-    {
-        hash = ((hash << 5) + hash) + idx; //  hash = hash * 33 + idx;
-    }
+/**
+ * Allocates and initializes a new hash table node.
+ * Makes an internal copy of the key string and stores the value pointer.
+ *
+ * @param p_key   Pointer to null-terminated string key to copy
+ * @param p_value Pointer to value to associate with the key
+ *
+ * @return Pointer to new node, or NULL on allocation failure or invalid input
+ */
+static ht_node *create_node (const char *p_key, void *p_value);
 
-    return hash;
-}
+/**
+ * Frees a single hash table node and optionally deallocates its value.
+ *
+ * @param p_node Pointer to node to free
+ * @param del    Optional deallocation callback for the node's value; may be NULL
+ */
+static void free_node(ht_node *p_node, del_f del);
 
-static ht_node *
-create_node (const char *p_key, void *p_value)
-{
-    if ((NULL == p_key) || (NULL == p_value))
-    {
-        fprintf(stderr, "[ERR] Invalid variables to create new node.\n");
-        return NULL;
-    }
+/**
+ * Determines whether the table should be resized based on its load factor.
+ *
+ * @param p_htable Pointer to hashtable (must be non-NULL)
+ *
+ * @return Non-zero if resize is needed, 0 otherwise
+ */
+static inline int needs_resize(ht_t *p_htable);
 
-    ht_node *p_new = calloc(1, sizeof(ht_node));
-    if (NULL == p_new)
-    {
-        perror("[ERR] Memory allocation fail - create_node()");
-        goto END_CREATE;
-    }
-
-    p_new->p_key = calloc(1, (strlen(p_key) + 1));
-    if (NULL == p_new->p_key)
-    {
-        perror("[ERR] Memory Allocation Fail - create_node(): p_key");
-        free(p_new);
-        p_new = NULL;
-    }
-    else
-    {
-        strcpy(p_new->p_key, p_key);
-        p_new->p_value = p_value;
-        p_new->p_next  = NULL;
-    }
-
-END_CREATE:
-    return p_new;
-}
-
-static void free_node(ht_node *p_node, del_f del)
-{
-    if (NULL == p_node)
-    {
-        fprintf(stderr, "[ERR] No node provided to free - free_node()\n");
-        return;
-    }
-
-    free(p_node->p_key);
-
-    if (del)
-    {
-        del(p_node->p_value);
-    }
-
-    free(p_node);
-}
-
-static inline int needs_resize(ht_t *p_htable)
-{
-    // inline function, parameters have been checked by the calling function
-
-    float load_factor = (float)p_htable->node_count / p_htable->table_size;
-
-    return (BALANCE_FACTOR < load_factor);
-}
-
-static int resize_table(ht_t *p_htable)
-{
-    if ((NULL == p_htable) || (0 == p_htable->table_size))
-    {
-        fprintf(stderr, "[ERR] resize_table(): No valid htable provided\n");
-        return 0;
-    }
-
-    int status = 1; // start success
-    size_t og_size = p_htable->table_size; // well need this to iterateog items
-    size_t new_size = p_htable->table_size * 2; // double size
-
-    ht_node **pp_og_items = p_htable->pp_items;
-    ht_node **pp_new_items = calloc(new_size, sizeof(ht_node*));
-    if (NULL == pp_new_items)
-    {
-        perror("[ERR] Memory allocation failure - resize_table().\n");
-        status = 0;
-    }
-
-    if (status)
-    {
-        // resize table struct then rahash every item and save back in 
-
-        // RESIZE
-        p_htable->pp_items = pp_new_items;
-        p_htable->table_size = new_size;
-        p_htable->node_count = 0; // we will update this as we rehash
-
-        //REHASH
-        for (size_t idx = 0; idx < og_size; idx++)
-        {
-            ht_node *p_curr = pp_og_items[idx];
-
-            while (p_curr)
-            {
-                ht_node *p_next = p_curr->p_next; // set up for next in chain
-
-                //get new index based on new size
-                size_t new_idx = p_htable->hash_func(p_curr->p_key) % new_size;
-                p_curr->p_next = pp_new_items[new_idx];
-                pp_new_items[new_idx] = p_curr;
-                p_htable->node_count++;
-
-                p_curr = p_next;
-            }
-        }
-
-        free(pp_og_items);
-    }
-
-    return status;
-}
+/**
+ * Resizes the hashtable to maintain a reasonable load factor.
+ * Allocates a new bucket array, rehashes all nodes, and replaces the old table.
+ *
+ * @param p_htable Pointer to hashtable to resize
+ *
+ * @return 1 on success, 0 on allocation failure or invalid input
+ */
+static int resize_table(ht_t *p_htable);
 
 ht_t *
 ht_create (size_t initial_size, hash_f hash)
@@ -492,4 +407,136 @@ ht_print_keys (ht_t *p_htable)
             }
         }
     }
+}
+
+static size_t
+default_hash (const char *p_key)
+{
+    // using djb2 hash algorithm
+    // https: // theartincode.stanis.me/008-djb2/
+    size_t hash = HASH_SEED;
+    int    idx  = 0;
+
+    // need to cast to unsigned to zero extend the char (1 byte) to int (4 bytes)
+    while ((idx = (unsigned char)*p_key++))
+    {
+        hash = ((hash << 5) + hash) + idx; //  hash = hash * 33 + idx;
+    }
+
+    return hash;
+}
+
+static ht_node *
+create_node (const char *p_key, void *p_value)
+{
+    if ((NULL == p_key) || (NULL == p_value))
+    {
+        fprintf(stderr, "[ERR] Invalid variables to create new node.\n");
+        return NULL;
+    }
+
+    ht_node *p_new = calloc(1, sizeof(ht_node));
+    if (NULL == p_new)
+    {
+        perror("[ERR] Memory allocation fail - create_node()");
+        goto END_CREATE;
+    }
+
+    p_new->p_key = calloc(1, (strlen(p_key) + 1));
+    if (NULL == p_new->p_key)
+    {
+        perror("[ERR] Memory Allocation Fail - create_node(): p_key");
+        free(p_new);
+        p_new = NULL;
+    }
+    else
+    {
+        strcpy(p_new->p_key, p_key);
+        p_new->p_value = p_value;
+        p_new->p_next  = NULL;
+    }
+
+END_CREATE:
+    return p_new;
+}
+
+static void free_node(ht_node *p_node, del_f del)
+{
+    if (NULL == p_node)
+    {
+        fprintf(stderr, "[ERR] No node provided to free - free_node()\n");
+        return;
+    }
+
+    free(p_node->p_key);
+
+    if (del)
+    {
+        del(p_node->p_value);
+    }
+
+    free(p_node);
+}
+
+static inline int needs_resize(ht_t *p_htable)
+{
+    // inline function, parameters have been checked by the calling function
+
+    float load_factor = (float)p_htable->node_count / p_htable->table_size;
+
+    return (BALANCE_FACTOR < load_factor);
+}
+
+static int resize_table(ht_t *p_htable)
+{
+    if ((NULL == p_htable) || (0 == p_htable->table_size))
+    {
+        fprintf(stderr, "[ERR] resize_table(): No valid htable provided\n");
+        return 0;
+    }
+
+    int status = 1; // start success
+    size_t og_size = p_htable->table_size; // well need this to iterateog items
+    size_t new_size = p_htable->table_size * 2; // double size
+
+    ht_node **pp_og_items = p_htable->pp_items;
+    ht_node **pp_new_items = calloc(new_size, sizeof(ht_node*));
+    if (NULL == pp_new_items)
+    {
+        perror("[ERR] Memory allocation failure - resize_table().\n");
+        status = 0;
+    }
+
+    if (status)
+    {
+        // resize table struct then rahash every item and save back in 
+
+        // RESIZE
+        p_htable->pp_items = pp_new_items;
+        p_htable->table_size = new_size;
+        p_htable->node_count = 0; // we will update this as we rehash
+
+        //REHASH
+        for (size_t idx = 0; idx < og_size; idx++)
+        {
+            ht_node *p_curr = pp_og_items[idx];
+
+            while (p_curr)
+            {
+                ht_node *p_next = p_curr->p_next; // set up for next in chain
+
+                //get new index based on new size
+                size_t new_idx = p_htable->hash_func(p_curr->p_key) % new_size;
+                p_curr->p_next = pp_new_items[new_idx];
+                pp_new_items[new_idx] = p_curr;
+                p_htable->node_count++;
+
+                p_curr = p_next;
+            }
+        }
+
+        free(pp_og_items);
+    }
+
+    return status;
 }

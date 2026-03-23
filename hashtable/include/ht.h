@@ -111,7 +111,7 @@ void *ht_remove(ht_t *p_htable, const char *p_key);
 void *ht_update(ht_t *p_htable, const char *p_key, void *p_new_value);
 
 /**
- * Checks if a key exists in the hashtable. Does not return data
+ * Checks if a key exists in the hashtable without accessing the value.
  *
  *
  *
